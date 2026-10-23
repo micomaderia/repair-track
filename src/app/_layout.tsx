@@ -1,18 +1,49 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { SplashScreen, Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { BrandSplash } from '@/components/brand-splash';
+import { ToastProvider } from '@/components/ui/toast';
+import { Colors } from '@/constants/theme';
+import { SessionProvider, useSession } from '@/features/auth/session-provider';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <SessionProvider>
+        <ToastProvider>
+          <StatusBar style="dark" />
+          <RootNavigator />
+        </ToastProvider>
+      </SessionProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootNavigator() {
+  const { status, restoreError, retryRestore } = useSession();
+
+  useEffect(() => {
+    if (status !== 'loading') SplashScreen.hide();
+  }, [status]);
+
+  // Never render protected screens until the stored session is resolved.
+  if (status === 'loading' || status === 'restore_failed') {
+    return <BrandSplash error={status === 'restore_failed' ? restoreError : null} onRetry={retryRestore} />;
+  }
+
+  const signedIn = status === 'signed_in';
+  return (
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.background } }}>
+      <Stack.Protected guard={signedIn} redirectTo="/login">
+        <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={!signedIn} redirectTo="/">
+        <Stack.Screen name="login" options={{ animation: 'fade' }} />
+      </Stack.Protected>
+    </Stack>
   );
 }
